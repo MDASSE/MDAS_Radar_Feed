@@ -4,13 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "npm run tw:dev & vite",
+    "build": "npm run tw:build && tsc -b && vite build",
+    "build:wasm": "node scripts/build-wasm.js",
+    "build:wasm:win": "build-wasm.bat",
+    "build:wasm:unix": "bash build-wasm.sh",
     "lint": "eslint .",
     "preview": "vite preview",
     "tw:dev": "tailwindcss -i ./src/index.css -o ./src/tailwind.css --watch",
     "tw:build": "tailwindcss -i ./src/index.css -o ./src/tailwind.css --minify"
-
   },
   "dependencies": {
     "react": "^19.1.1",

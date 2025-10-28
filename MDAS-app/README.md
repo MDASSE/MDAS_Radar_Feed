@@ -1,73 +1,106 @@
-# React + TypeScript + Vite
+# MDAS Radar Feed
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Maritime Domain Awareness System - Vessel Tracking Radar
 
-Currently, two official plugins are available:
+A real-time radar simulation displaying multiple vessels with their positions, speeds, headings, and movements.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## React Compiler
+- **Real-time Radar Display**: Interactive radar screen showing vessel positions
+- **Vessel Tracking**: Track multiple vessels simultaneously with unique callsigns
+- **Interactive**: Click on any vessel to view detailed information
+- **Dynamic Movement**: Vessels move realistically with varying speeds and headings
+- **Risk Assessment**: Automatic calculation of time to closest point of approach (CPA)
+- **Modern UI**: Beautiful dark theme with cyan accents
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting Started
 
-## Expanding the ESLint configuration
+### Prerequisites
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js (v16 or higher)
+- npm or yarn
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Installation
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+```bash
+# Install dependencies
+npm install
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Build WASM module (optional, currently using JavaScript simulation)
+npm run build:wasm
+
+# Start development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Running with Emscripten (Optional)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+To build the C++ WASM module:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+# Windows
+npm run build:wasm:win
+
+# Unix/Linux/Mac
+npm run build:wasm:unix
 ```
+
+Note: Requires Emscripten SDK installed ([Download](https://emscripten.org/docs/getting_started/downloads.html))
+
+## Project Structure
+
+```
+MDAS-app/
+├── src/
+│   ├── components/
+│   │   ├── Radar.tsx       # Main radar display component
+│   │   └── ShipInfo.tsx    # Vessel information panel
+│   ├── wasm/
+│   │   ├── radar.cpp       # C++ radar simulation logic
+│   │   └── library.js      # Emscripten bindings
+│   └── App.tsx             # Main application
+├── public/
+│   └── radar.wasm          # Compiled WASM module (optional)
+└── scripts/
+    └── build-wasm.js       # WASM build script
+```
+
+## How It Works
+
+The radar display shows:
+- **Red dot** (center): Your own ship
+- **Green dots**: Other vessels in the area
+- **Range rings**: Distance markers every ~2 nautical miles
+- **Vessel trails**: Movement direction indicators
+
+Click on any vessel to see:
+- Callsign and ID
+- Current position (distance, bearing, coordinates)
+- Speed and heading
+- Risk assessment (time to CPA)
+
+## Development
+
+```bash
+# Run in development mode
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Technology Stack
+
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **Tailwind CSS** - Styling
+- **WASM** - High-performance simulation (optional)
+- **Emscripten** - C++ to WASM compilation
+
+## License
+
+MIT
