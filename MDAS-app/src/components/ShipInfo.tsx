@@ -1,11 +1,4 @@
-interface Vessel {
-  x: number;
-  y: number;
-  speed: number;
-  heading: number;
-  id: number;
-  callsign: string;
-}
+import type { Vessel } from '../wasm/radarModule';
 
 interface ShipInfoProps {
   vessel: Vessel | null;

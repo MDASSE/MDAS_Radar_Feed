@@ -2,21 +2,21 @@ import { useState } from 'react'
 import './App.css'
 import Radar from './components/Radar'
 import ShipInfo from './components/ShipInfo'
-
-interface Vessel {
-  x: number;
-  y: number;
-  speed: number;
-  heading: number;
-  id: number;
-  callsign: string;
-}
+import type { Vessel } from './wasm/radarModule'
 
 function App() {
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
+  const [selectedVesselId, setSelectedVesselId] = useState<number | null>(null);
 
   const handleVesselSelect = (vessel: Vessel) => {
+    setSelectedVesselId(vessel.id);
     setSelectedVessel(vessel);
+  };
+
+  const handleVesselsUpdate = (vessels: Vessel[]) => {
+    if (selectedVesselId == null) return;
+    const v = vessels.find(v => v.id === selectedVesselId) || null;
+    if (v) setSelectedVessel(v);
   };
 
   return (
@@ -29,7 +29,7 @@ function App() {
 
         <div className="flex flex-row gap-12 justify-center items-start">
           <div className="flex-shrink-0">
-            <Radar onVesselSelect={handleVesselSelect} />
+            <Radar onVesselSelect={handleVesselSelect} onVesselsUpdate={handleVesselsUpdate} />
           </div>
 
           <div className="flex-shrink-0 w-96">

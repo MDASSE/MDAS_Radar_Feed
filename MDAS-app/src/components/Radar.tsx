@@ -1,40 +1,43 @@
-import { useEffect, useRef } from 'react';
-
-interface Vessel {
-  x: number;
-  y: number;
-  speed: number;
-  heading: number;
-  id: number;
-  callsign: string;
-}
+import { useEffect, useRef, useState } from 'react';
+import { 
+  loadRadarModule, 
+  initRadarModule, 
+  updateRadarModule, 
+  getVessels,
+  type Vessel 
+} from '../wasm/radarModule';
 
 interface RadarProps {
   onVesselSelect?: (vessel: Vessel) => void;
+  onVesselsUpdate?: (vessels: Vessel[]) => void;
 }
 
-export default function Radar({ onVesselSelect }: RadarProps) {
+export default function Radar({ onVesselSelect, onVesselsUpdate }: RadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const vesselsRef = useRef<Vessel[]>([]);
-  const timeRef = useRef(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const wasmLoadedRef = useRef(false);
 
+  // Load WASM module on mount
+  useEffect(() => {
+    loadRadarModule()
+      .then(() => {
+        wasmLoadedRef.current = true;
+        initRadarModule();
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setIsLoading(false);
+      });
+  }, []);
+
+  // Animation and rendering
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const initVessels = () => {
-      vesselsRef.current = [
-        { x: 2000, y: 1500, speed: 0.05, heading: 0.78, id: 1, callsign: 'SHIP-001' },
-        { x: -1500, y: -800, speed: 0.07, heading: 3.14, id: 2, callsign: 'SHIP-002' },
-        { x: 1800, y: -1200, speed: 0.04, heading: 2.35, id: 3, callsign: 'SHIP-003' },
-        { x: -2500, y: -1500, speed: 0.06, heading: -2.36, id: 4, callsign: 'SHIP-004' },
-        { x: 1200, y: 2000, speed: 0.08, heading: 1.57, id: 5, callsign: 'SHIP-005' },
-        { x: -800, y: 2200, speed: 0.05, heading: 0.39, id: 6, callsign: 'SHIP-006' },
-        { x: 3000, y: -2200, speed: 0.045, heading: -1.18, id: 7, callsign: 'SHIP-007' },
-        { x: -3500, y: 800, speed: 0.065, heading: 2.94, id: 8, callsign: 'SHIP-008' },
-      ];
-    };
+    if (!canvas || !wasmLoadedRef.current || isLoading) return;
 
     const drawGrid = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number) => {
       ctx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
@@ -120,42 +123,39 @@ export default function Radar({ onVesselSelect }: RadarProps) {
       });
     };
 
+    const handleClick = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radarSize = Math.min(canvas.width, canvas.height) * 0.85;
+      const scale = 10000 / (radarSize / 2);
+
+      // Find clicked vessel
+      const clickedVessel = vesselsRef.current.find(v => {
+        const screenX = centerX + v.x / scale;
+        const screenY = centerY - v.y / scale;
+        const distance = Math.sqrt((clickX - screenX) ** 2 + (clickY - screenY) ** 2);
+        return distance < 20;
+      });
+
+      if (clickedVessel && onVesselSelect) {
+        onVesselSelect(clickedVessel);
+      }
+    };
+
     const animate = () => {
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx || !wasmLoadedRef.current) return;
 
-      timeRef.current++;
-
-      // Update vessel positions
-      vesselsRef.current = vesselsRef.current.map(v => {
-        const deltaX = Math.cos(v.heading) * v.speed;
-        const deltaY = Math.sin(v.heading) * v.speed;
-        
-        return {
-          ...v,
-          x: v.x + deltaX,
-          y: v.y + deltaY,
-        };
-      });
-
-      // Some vessels make slight course corrections occasionally
-      if (timeRef.current % 200 === 0) {
-        vesselsRef.current = vesselsRef.current.map(v => ({
-          ...v,
-          heading: v.heading + (Math.random() - 0.5) * 0.02,
-        }));
-      }
-
-      // Wrap vessels around if they go too far
-      vesselsRef.current = vesselsRef.current.map(v => {
-        if (Math.abs(v.x) > 12000) {
-          v.x = -v.x * 0.9;
-        }
-        if (Math.abs(v.y) > 12000) {
-          v.y = -v.y * 0.9;
-        }
-        return v;
-      });
+      // Update vessel positions in WASM
+      updateRadarModule();
+      
+      // Get updated vessel data from WASM
+      vesselsRef.current = getVessels();
+      if (onVesselsUpdate) onVesselsUpdate(vesselsRef.current);
 
       // Clear canvas
       ctx.fillStyle = '#001122';
@@ -193,31 +193,7 @@ export default function Radar({ onVesselSelect }: RadarProps) {
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    const handleClick = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const clickY = e.clientY - rect.top;
-      
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const radarSize = Math.min(canvas.width, canvas.height) * 0.85;
-      const scale = 10000 / (radarSize / 2);
-
-      // Find clicked vessel
-      const clickedVessel = vesselsRef.current.find(v => {
-        const screenX = centerX + v.x / scale;
-        const screenY = centerY - v.y / scale;
-        const distance = Math.sqrt((clickX - screenX) ** 2 + (clickY - screenY) ** 2);
-        return distance < 20;
-      });
-
-      if (clickedVessel && onVesselSelect) {
-        onVesselSelect(clickedVessel);
-      }
-    };
-
     canvas.addEventListener('click', handleClick);
-    initVessels();
     animate();
 
     return () => {
@@ -226,10 +202,30 @@ export default function Radar({ onVesselSelect }: RadarProps) {
       }
       canvas.removeEventListener('click', handleClick);
     };
-  }, [onVesselSelect]);
+  }, [isLoading, onVesselSelect]);
 
   return (
     <div className="relative bg-slate-900 rounded-lg shadow-lg p-8">
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900 bg-opacity-90 z-10">
+          <div className="text-center">
+            <div className="text-cyan-400 text-lg mb-2">Loading WASM Module...</div>
+            <div className="text-slate-400 text-sm">Initializing radar system</div>
+          </div>
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900 bg-opacity-90 z-10">
+          <div className="text-center p-4">
+            <div className="text-red-400 text-lg mb-2">WASM Module Error</div>
+            <div className="text-slate-300 text-sm">{error}</div>
+            <div className="text-slate-400 text-xs mt-2">
+              Make sure to build the WASM module first:<br />
+              <code className="text-cyan-400">npm run build:wasm</code>
+            </div>
+          </div>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         width={800}

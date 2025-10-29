@@ -1,24 +1,25 @@
 @echo off
 echo Building WASM module with Emscripten...
+echo.
 
-REM Check if emcc is available
-where emcc >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: emcc (Emscripten compiler) not found in PATH
-    echo.
-    echo Please install Emscripten from: https://emscripten.org/docs/getting_started/downloads.html
-    echo Then activate it with: emsdk_env.bat
+echo Compiling radar.cpp...
+
+REM Resolve emcc path relative to this project (emsdk sibling directory)
+set EMCC_PATH=..\emsdk\upstream\emscripten\emcc.bat
+
+if not exist %EMCC_PATH% (
+    echo ERROR: Could not find emcc at %EMCC_PATH%
+    echo Ensure emsdk is cloned next to MDAS-app and installed/activated.
     pause
     exit /b 1
 )
 
-echo Compiling radar.cpp...
-emcc src/wasm/radar.cpp ^
+"%EMCC_PATH%" src/wasm/radar.cpp ^
     -O3 ^
     -s WASM=1 ^
-    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' ^
-    -s EXPORTED_FUNCTIONS='["_initRadar","_updateRadar","_getVesselCount","_getVesselData","_getVesselCallsign","_getRadarRange","_setOwnShip"]' ^
-    -s TOTAL_MEMORY=16777216 ^
+    -s EXPORTED_RUNTIME_METHODS=[ccall,cwrap,UTF8ToString] ^
+    -s EXPORTED_FUNCTIONS=[_initRadar,_updateRadar,_getVesselCount,_getVesselData,_getVesselCallsign,_getRadarRange,_setOwnShip,_malloc,_free] ^
+    -s INITIAL_MEMORY=16777216 ^
     -o public/radar.js ^
     --js-library src/wasm/library.js
 

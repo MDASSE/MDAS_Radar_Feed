@@ -60,10 +60,15 @@ extern "C" {
     void updateRadar() {
         timeStep++;
         
+        // Maximum speed cap: 10 knots in meters per second
+        const float MAX_SPEED_MPS = 10.0f * 0.514444f;
+
         for (auto& vessel : vessels) {
-            // Update position based on speed and course
-            float dx = cos(vessel.heading) * vessel.speed;
-            float dy = sin(vessel.heading) * vessel.speed;
+            // Update position based on speed and course (slower movement)
+            const float speedScale = 0.2f; // reduce movement to 20%
+            const float effectiveSpeed = (vessel.speed > MAX_SPEED_MPS ? MAX_SPEED_MPS : vessel.speed);
+            float dx = cos(vessel.heading) * effectiveSpeed * speedScale;
+            float dy = sin(vessel.heading) * effectiveSpeed * speedScale;
             
             vessel.x += dx;
             vessel.y += dy;
