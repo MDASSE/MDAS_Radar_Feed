@@ -1,6 +1,7 @@
 #include <emscripten.h>
 #include <cmath>
 #include <vector>
+#include <cstring>
 
 // Vessel structure
 struct Vessel {
@@ -130,6 +131,60 @@ extern "C" {
         ownShipX = x;
         ownShipY = y;
         ownShipHeading = heading;
+    }
+
+    // Clear all vessels
+    EMSCRIPTEN_KEEPALIVE
+    void clearVessels() {
+        vessels.clear();
+        timeStep = 0;
+    }
+
+    // Add a vessel with data from server
+    // Parameters: x, y, speed (m/s), heading (radians), course (radians), id, callsign (string pointer)
+    EMSCRIPTEN_KEEPALIVE
+    void addVessel(float x, float y, float speed, float heading, float course, int id, const char* callsign) {
+        Vessel v;
+        v.x = x;
+        v.y = y;
+        v.speed = speed;
+        v.heading = heading;
+        v.course = course;
+        v.id = id;
+        // Copy callsign, ensuring null termination
+        strncpy(v.callsign, callsign, sizeof(v.callsign) - 1);
+        v.callsign[sizeof(v.callsign) - 1] = '\0';
+        vessels.push_back(v);
+    }
+
+    // Set vessels from array data
+    // data format: [x1, y1, speed1, heading1, course1, id1, x2, y2, ...]
+    // callsigns: array of string pointers for callsigns
+    EMSCRIPTEN_KEEPALIVE
+    void setVesselsFromData(float* data, const char** callsigns, int count) {
+        vessels.clear();
+        vessels.reserve(count);
+        
+        for (int i = 0; i < count; i++) {
+            int offset = i * 6; // 6 floats per vessel: x, y, speed, heading, course, id
+            Vessel v;
+            v.x = data[offset];
+            v.y = data[offset + 1];
+            v.speed = data[offset + 2];
+            v.heading = data[offset + 3];
+            v.course = data[offset + 4];
+            v.id = (int)data[offset + 5];
+            
+            if (callsigns && callsigns[i]) {
+                strncpy(v.callsign, callsigns[i], sizeof(v.callsign) - 1);
+                v.callsign[sizeof(v.callsign) - 1] = '\0';
+            } else {
+                v.callsign[0] = '\0';
+            }
+            
+            vessels.push_back(v);
+        }
+        timeStep = 0;
     }
 }
 

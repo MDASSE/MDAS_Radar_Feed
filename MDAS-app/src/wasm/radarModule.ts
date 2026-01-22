@@ -29,6 +29,9 @@ let getVesselData: ((dataPtr: number, maxCount: number) => void) | null = null;
 let getVesselCallsign: ((index: number) => string) | null = null;
 let getRadarRange: (() => number) | null = null;
 let setOwnShip: ((x: number, y: number, heading: number) => void) | null = null;
+let clearVessels: (() => void) | null = null;
+let addVessel: ((x: number, y: number, speed: number, heading: number, course: number, id: number, callsign: string) => void) | null = null;
+let setVesselsFromData: ((dataPtr: number, callsignsPtr: number, count: number) => void) | null = null;
 
 export interface Vessel {
   x: number;
@@ -37,6 +40,27 @@ export interface Vessel {
   heading: number;
   id: number;
   callsign: string;
+}
+
+// Server vessel data format (as would come from SQL/database)
+export interface ServerVesselData {
+  id: number;
+  callsign?: string;
+  mmsi?: string;
+  // Position can be in meters (x, y) or lat/lon
+  x?: number;  // X position in meters
+  y?: number;  // Y position in meters
+  latitude?: number;  // Latitude in degrees (will be converted to meters relative to own ship)
+  longitude?: number;  // Longitude in degrees (will be converted to meters relative to own ship)
+  // Speed and heading
+  speed?: number;  // Speed in knots (will be converted to m/s)
+  speed_mps?: number;  // Speed in m/s (if provided directly)
+  heading?: number;  // Heading in degrees (will be converted to radians)
+  heading_rad?: number;  // Heading in radians (if provided directly)
+  course?: number;  // Course in degrees (will be converted to radians)
+  course_rad?: number;  // Course in radians (if provided directly)
+  // Timestamp
+  timestamp?: string | number;
 }
 
 /**
@@ -65,6 +89,15 @@ export async function loadRadarModule(): Promise<EmscriptenModule> {
         getVesselData = radarModule.cwrap('getVesselData', '', ['number', 'number']) as (dataPtr: number, maxCount: number) => void;
         getRadarRange = radarModule.cwrap('getRadarRange', 'number', []) as () => number;
         setOwnShip = radarModule.cwrap('setOwnShip', '', ['number', 'number', 'number']) as (x: number, y: number, heading: number) => void;
+        clearVessels = radarModule.cwrap('clearVessels', '', []) as () => void;
+        
+        // addVessel needs special handling for string parameter - use ccall for strings
+        const addVesselFunc = radarModule.ccall.bind(radarModule);
+        addVessel = (x: number, y: number, speed: number, heading: number, course: number, id: number, callsign: string) => {
+          radarModule.ccall('addVessel', null, ['number', 'number', 'number', 'number', 'number', 'number', 'string'], [x, y, speed, heading, course, id, callsign]);
+        };
+        
+        setVesselsFromData = radarModule.cwrap('setVesselsFromData', '', ['number', 'number', 'number']) as (dataPtr: number, callsignsPtr: number, count: number) => void;
 
         // getVesselCallsign returns a string pointer, needs special handling
         const getVesselCallsignPtr = radarModule.cwrap('getVesselCallsign', 'number', ['number']) as (index: number) => number;
@@ -178,3 +211,123 @@ export function setOwnShipModule(x: number, y: number, heading: number): void {
   setOwnShip(x, y, heading);
 }
 
+/**
+ * Clear all vessels
+ */
+export function clearVesselsModule(): void {
+  if (!clearVessels) {
+    throw new Error('Radar module not loaded. Call loadRadarModule() first.');
+  }
+  clearVessels();
+}
+
+/**
+ * Add a single vessel
+ */
+export function addVesselModule(x: number, y: number, speed: number, heading: number, course: number, id: number, callsign: string): void {
+  if (!addVessel) {
+    throw new Error('Radar module not loaded. Call loadRadarModule() first.');
+  }
+  addVessel(x, y, speed, heading, course, id, callsign);
+}
+
+/**
+ * Convert server vessel data to radar format and load into WASM
+ * Handles various input formats (lat/lon, degrees, knots, etc.)
+ */
+export function loadVesselsFromServer(vesselsData: ServerVesselData[], ownShipLat?: number, ownShipLon?: number): void {
+  if (!clearVessels || !addVessel || !radarModule) {
+    throw new Error('Radar module not loaded. Call loadRadarModule() first.');
+  }
+
+  clearVessels();
+
+  // Convert lat/lon to meters if needed (approximate conversion)
+  // 1 degree latitude ≈ 111,320 meters
+  // 1 degree longitude ≈ 111,320 * cos(latitude) meters
+  const latToMeters = (lat: number, refLat: number = 0) => lat * 111320;
+  const lonToMeters = (lon: number, refLat: number = 0) => lon * 111320 * Math.cos(refLat * Math.PI / 180);
+
+  for (const vessel of vesselsData) {
+    let x: number;
+    let y: number;
+
+    // Handle position input (prefer x/y in meters, fallback to lat/lon)
+    if (vessel.x !== undefined && vessel.y !== undefined) {
+      x = vessel.x;
+      y = vessel.y;
+    } else if (vessel.latitude !== undefined && vessel.longitude !== undefined) {
+      if (ownShipLat !== undefined && ownShipLon !== undefined) {
+        // Convert relative to own ship position
+        const latDiff = vessel.latitude - ownShipLat;
+        const lonDiff = vessel.longitude - ownShipLon;
+        x = lonToMeters(lonDiff, ownShipLat);
+        y = latToMeters(latDiff, ownShipLat);
+      } else {
+        // Convert to meters from origin (0,0)
+        x = lonToMeters(vessel.longitude, vessel.latitude);
+        y = latToMeters(vessel.latitude);
+      }
+    } else {
+      console.warn(`Vessel ${vessel.id} missing position data, skipping`);
+      continue;
+    }
+
+    // Handle speed (prefer m/s, convert from knots if needed)
+    // 1 knot = 0.514444 m/s
+    const speed = vessel.speed_mps !== undefined 
+      ? vessel.speed_mps 
+      : (vessel.speed !== undefined ? vessel.speed * 0.514444 : 0);
+
+    // Handle heading (prefer radians, convert from degrees if needed)
+    const heading = vessel.heading_rad !== undefined
+      ? vessel.heading_rad
+      : (vessel.heading !== undefined ? (vessel.heading * Math.PI) / 180 : 0);
+
+    // Handle course (prefer radians, convert from degrees if needed)
+    const course = vessel.course_rad !== undefined
+      ? vessel.course_rad
+      : (vessel.course !== undefined ? (vessel.course * Math.PI) / 180 : heading);
+
+    // Get callsign (prefer callsign, fallback to MMSI, then ID)
+    const callsign = vessel.callsign || vessel.mmsi || `VESSEL-${vessel.id}`;
+
+    addVessel(x, y, speed, heading, course, vessel.id, callsign);
+  }
+}
+
+/**
+ * Fetch vessels from server API endpoint
+ */
+export async function fetchVesselsFromServer(apiUrl: string, ownShipLat?: number, ownShipLon?: number): Promise<ServerVesselData[]> {
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch vessels: ${response.statusText}`);
+    }
+    const data = await response.json();
+    
+    // Handle both array and object responses
+    const vesselsArray = Array.isArray(data) ? data : (data.vessels || data.data || []);
+    
+    return vesselsArray.map((v: any) => ({
+      id: v.id || v.mmsi || Math.random() * 1000000,
+      callsign: v.callsign || v.callsign_name,
+      mmsi: v.mmsi,
+      x: v.x || v.x_meters,
+      y: v.y || v.y_meters,
+      latitude: v.latitude || v.lat,
+      longitude: v.longitude || v.long || v.lon,
+      speed: v.speed || v.speed_knots,
+      speed_mps: v.speed_mps || v.speed_meters_per_second,
+      heading: v.heading || v.heading_degrees,
+      heading_rad: v.heading_rad || v.heading_radians,
+      course: v.course || v.course_degrees,
+      course_rad: v.course_rad || v.course_radians,
+      timestamp: v.timestamp || v.time || v.last_update
+    }));
+  } catch (error) {
+    console.error('Error fetching vessels from server:', error);
+    throw error;
+  }
+}

@@ -1,57 +1,62 @@
-import type { Vessel } from '../wasm/radarModule';
-
-interface ShipInfoProps {
-  vessel: Vessel | null;
+interface RadarTarget {
+  x: number;
+  y: number;
+  angle: number;
+  range: number;
+  intensity: number;
+  id?: number;
 }
 
-export default function ShipInfo({ vessel }: ShipInfoProps) {
-  if (!vessel) {
+interface ShipInfoProps {
+  target: RadarTarget | null;
+}
+
+export default function ShipInfo({ target }: ShipInfoProps) {
+  if (!target) {
     return (
       <div className="bg-slate-800 rounded-lg shadow-lg p-8 min-h-[800px]">
-        <h2 className="text-4xl font-bold text-cyan-400 mb-6">Vessel Information</h2>
-        <p className="text-slate-400 text-2xl">Click on a vessel on the radar to view details</p>
+        <h2 className="text-4xl font-bold text-cyan-400 mb-6">Target Information</h2>
+        <p className="text-slate-400 text-2xl">Click on a target on the radar to view details</p>
       </div>
     );
   }
-
-  // Convert heading from radians to degrees
-  const headingDeg = ((vessel.heading * 180) / Math.PI + 360) % 360;
   
   // Calculate distance from own ship
-  const distance = Math.sqrt(vessel.x ** 2 + vessel.y ** 2);
+  const distance = Math.sqrt(target.x ** 2 + target.y ** 2);
   const distanceNm = distance / 1852; // Convert meters to nautical miles
   
-  // Calculate bearing from own ship
-  const bearing = (Math.atan2(vessel.x, vessel.y) * 180) / Math.PI;
+  // Calculate bearing from own ship (0° = North, 90° = East)
+  const bearing = (Math.atan2(target.x, target.y) * 180) / Math.PI;
   const bearingDeg = (bearing + 360) % 360;
-  
-  // Convert speed from m/s to knots
-  const speedKnots = vessel.speed * 1.944;
 
   return (
     <div className="bg-slate-800 rounded-lg shadow-lg p-8 min-h-[800px]">
-      <h2 className="text-4xl font-bold text-cyan-400 mb-8">Vessel Information</h2>
+      <h2 className="text-4xl font-bold text-cyan-400 mb-8">Target Information</h2>
       
       <div className="space-y-6">
         <div className="bg-slate-900 p-6 rounded-lg">
           <div className="mb-4">
-            <div className="text-slate-400 text-xl mb-3 font-semibold">Callsign</div>
-            <div className="text-white font-mono text-3xl font-bold">{vessel.callsign}</div>
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Target ID</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.id ?? 'N/A'}</div>
           </div>
           <div>
-            <div className="text-slate-400 text-xl mb-3 font-semibold">ID</div>
-            <div className="text-white font-mono text-3xl font-bold">{vessel.id}</div>
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Intensity</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.intensity}</div>
           </div>
         </div>
 
         <div className="bg-slate-900 p-6 rounded-lg">
           <div className="mb-4">
             <div className="text-slate-400 text-xl mb-3 font-semibold">Position</div>
-            <div className="text-white font-mono text-3xl font-bold">{vessel.x.toFixed(0)}m, {vessel.y.toFixed(0)}m</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.x.toFixed(0)}m, {target.y.toFixed(0)}m</div>
           </div>
           <div className="mb-4">
             <div className="text-slate-400 text-xl mb-3 font-semibold">Distance</div>
             <div className="text-white font-mono text-3xl font-bold">{distanceNm.toFixed(2)} nm</div>
+          </div>
+          <div className="mb-4">
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Range</div>
+            <div className="text-white font-mono text-3xl font-bold">{(target.range / 1852).toFixed(2)} nm</div>
           </div>
           <div>
             <div className="text-slate-400 text-xl mb-3 font-semibold">Bearing</div>
@@ -61,12 +66,14 @@ export default function ShipInfo({ vessel }: ShipInfoProps) {
 
         <div className="bg-slate-900 p-6 rounded-lg">
           <div className="mb-4">
-            <div className="text-slate-400 text-xl mb-3 font-semibold">Speed</div>
-            <div className="text-white font-mono text-3xl font-bold">{speedKnots.toFixed(1)} kts</div>
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Angle</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.angle.toFixed(1)}°</div>
           </div>
           <div>
-            <div className="text-slate-400 text-xl mb-3 font-semibold">Heading</div>
-            <div className="text-white font-mono text-3xl font-bold">{headingDeg.toFixed(1)}°</div>
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Signal Strength</div>
+            <div className="text-white font-mono text-3xl font-bold">
+              {((target.intensity / 255) * 100).toFixed(1)}%
+            </div>
           </div>
         </div>
       </div>
