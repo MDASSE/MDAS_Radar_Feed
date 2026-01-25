@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
+import Login from './components/Login'
 import Radar from './components/Radar'
 import ShipInfo from './components/ShipInfo'
 import { pollRadarData } from './utils/radarApi'
@@ -15,7 +17,7 @@ interface RadarTarget {
   id?: number;
 }
 
-function App() {
+function RadarDashboard() {
   const [radarPacket, setRadarPacket] = useState<RadarPacket | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<RadarTarget | null>(null);
   const [selectedTargetId, setSelectedTargetId] = useState<number | null>(null);
@@ -101,6 +103,18 @@ function App() {
         </footer>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<RadarDashboard />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
