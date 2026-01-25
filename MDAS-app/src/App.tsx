@@ -5,20 +5,12 @@ import Login from './components/Login'
 import Radar from './components/Radar'
 import ShipInfo from './components/ShipInfo'
 import { pollRadarData } from './utils/radarApi'
-import { generateTestRadarData } from './utils/testRadarData'
+import { generateTestRadarTarget, type RadarTarget } from './utils/testRadarData'
 import type { RadarPacket } from './utils/simradParser'
-
-interface RadarTarget {
-  x: number;
-  y: number;
-  angle: number;
-  range: number;
-  intensity: number;
-  id?: number;
-}
 
 function RadarDashboard() {
   const [radarPacket, setRadarPacket] = useState<RadarPacket | null>(null);
+  const [testTargets, setTestTargets] = useState<RadarTarget[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<RadarTarget | null>(null);
   const [selectedTargetId, setSelectedTargetId] = useState<number | null>(null);
   const stopPollingRef = useRef<(() => void) | null>(null);
@@ -30,9 +22,12 @@ function RadarDashboard() {
   // Generate test data on mount
   useEffect(() => {
     if (useTestData) {
-      // Generate test radar data with a ship at 45 degrees, 5km range
-      const testData = generateTestRadarData(45, 5000, 200);
-      setRadarPacket(testData);
+      // Generate test radar target with a ship at 45 degrees, 5km range
+      const testTarget = generateTestRadarTarget(45, 5000, 200, undefined, 0);
+      setTestTargets([testTarget]);
+      setRadarPacket(null); // Clear radar packet when using test targets
+    } else {
+      setTestTargets([]); // Clear test targets when using server data
     }
   }, [useTestData]);
 
@@ -88,6 +83,7 @@ function RadarDashboard() {
           <div className="flex-shrink-0">
             <Radar 
               radarPacket={radarPacket || undefined}
+              targets={useTestData ? testTargets : undefined}
               onTargetSelect={handleTargetSelect}
               onTargetsUpdate={handleTargetsUpdate}
             />

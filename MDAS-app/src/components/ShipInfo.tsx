@@ -1,7 +1,7 @@
 interface RadarTarget {
-  x: number;
-  y: number;
+  bytes: number;
   angle: number;
+  angle_index: number;
   range: number;
   intensity: number;
   id?: number;
@@ -21,12 +21,17 @@ export default function ShipInfo({ target }: ShipInfoProps) {
     );
   }
   
+  // Calculate x, y from polar coordinates (angle, range) for display
+  const angleRad = (target.angle * Math.PI) / 180;
+  const x = target.range * Math.cos(angleRad);
+  const y = target.range * Math.sin(angleRad);
+  
   // Calculate distance from own ship
-  const distance = Math.sqrt(target.x ** 2 + target.y ** 2);
+  const distance = target.range;
   const distanceNm = distance / 1852; // Convert meters to nautical miles
   
   // Calculate bearing from own ship (0° = North, 90° = East)
-  const bearing = (Math.atan2(target.x, target.y) * 180) / Math.PI;
+  const bearing = (Math.atan2(x, y) * 180) / Math.PI;
   const bearingDeg = (bearing + 360) % 360;
 
   return (
@@ -39,6 +44,14 @@ export default function ShipInfo({ target }: ShipInfoProps) {
             <div className="text-slate-400 text-xl mb-3 font-semibold">Target ID</div>
             <div className="text-white font-mono text-3xl font-bold">{target.id ?? 'N/A'}</div>
           </div>
+          <div className="mb-4">
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Bytes</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.bytes}</div>
+          </div>
+          <div className="mb-4">
+            <div className="text-slate-400 text-xl mb-3 font-semibold">Angle Index</div>
+            <div className="text-white font-mono text-3xl font-bold">{target.angle_index}</div>
+          </div>
           <div>
             <div className="text-slate-400 text-xl mb-3 font-semibold">Intensity</div>
             <div className="text-white font-mono text-3xl font-bold">{target.intensity}</div>
@@ -48,7 +61,7 @@ export default function ShipInfo({ target }: ShipInfoProps) {
         <div className="bg-slate-900 p-6 rounded-lg">
           <div className="mb-4">
             <div className="text-slate-400 text-xl mb-3 font-semibold">Position</div>
-            <div className="text-white font-mono text-3xl font-bold">{target.x.toFixed(0)}m, {target.y.toFixed(0)}m</div>
+            <div className="text-white font-mono text-3xl font-bold">{x.toFixed(0)}m, {y.toFixed(0)}m</div>
           </div>
           <div className="mb-4">
             <div className="text-slate-400 text-xl mb-3 font-semibold">Distance</div>

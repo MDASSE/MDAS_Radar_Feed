@@ -284,9 +284,7 @@ export function loadVesselsFromServer(vesselsData: ServerVesselData[], ownShipLa
     // Handle heading (prefer radians, convert from degrees if needed)
     const heading = vessel.heading_rad !== undefined
       ? vessel.heading_rad
-      : (vessel.heading !== undefined ? (vessel.heading * Math.PI) / 180 : 0);
-
-    // Handle course (prefer radians, convert from degrees if needed)
+      : (vessel.heading !== undefined ? (vessel.heading * Math.PI) / 180 : 0);    // Handle course (prefer radians, convert from degrees if needed)
     const course = vessel.course_rad !== undefined
       ? vessel.course_rad
       : (vessel.course !== undefined ? (vessel.course * Math.PI) / 180 : heading);

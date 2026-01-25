@@ -7,9 +7,9 @@ import {
 } from '../utils/simradParser';
 
 interface RadarTarget {
-  x: number;
-  y: number;
+  bytes: number;
   angle: number;
+  angle_index: number;
   range: number;
   intensity: number;
   id?: number;
@@ -19,6 +19,7 @@ interface RadarProps {
   onTargetSelect?: (target: RadarTarget) => void;
   onTargetsUpdate?: (targets: RadarTarget[]) => void;
   radarPacket?: RadarPacket;  // Pre-parsed radar packet from server
+  targets?: RadarTarget[];  // Pre-generated targets (takes precedence over radarPacket)
   intensityThreshold?: number;  // Threshold for target detection (0-255)
   maxRange?: number;  // Maximum radar range in meters
   showSweepLines?: boolean;  // Whether to draw radar sweep lines
@@ -29,6 +30,7 @@ export default function Radar({
   onTargetSelect, 
   onTargetsUpdate,
   radarPacket,
+  targets: targetsProp,
   intensityThreshold = 100,
   maxRange: maxRangeProp,
   showSweepLines = true,
@@ -44,10 +46,16 @@ export default function Radar({
   // Use maxRange from packet if available, otherwise use prop or default
   const maxRange = radarPacket?.maxRangeMeters ?? maxRangeProp ?? 10000;
 
-  // Process radar packet data when it changes
+  // Process targets prop or radar packet data when it changes
   useEffect(() => {
     try {
-      if (radarPacket) {
+      // If targets are provided directly, use them
+      if (targetsProp) {
+        targetsRef.current = targetsProp;
+        if (onTargetsUpdate) {
+          onTargetsUpdate(targetsProp);
+        }
+      } else if (radarPacket) {
         // Update radar lines
         radarLinesRef.current = radarPacket.lines;
 
@@ -67,11 +75,12 @@ export default function Radar({
         radarPacket.lines.forEach(line => {
           const lineTargets = detectTargets(line, intensityThreshold);
           lineTargets.forEach(target => {
-            const { x, y } = polarToCartesian(target.angle, target.range);
+            // Calculate bytes from intensity (assuming 1 byte per intensity value)
+            const bytes = target.intensity;
             allTargets.push({
-              x,
-              y,
+              bytes,
               angle: target.angle,
+              angle_index: line.angleIndex,
               range: target.range,
               intensity: target.intensity,
               id: targetId++,
@@ -88,7 +97,7 @@ export default function Radar({
       console.error('Error processing radar data:', err);
       setError(`Failed to process radar data: ${err.message}`);
     }
-  }, [radarPacket, intensityThreshold, sweepPersistence, onTargetsUpdate]);
+  }, [radarPacket, targetsProp, intensityThreshold, sweepPersistence, onTargetsUpdate]);
 
   // Animation and rendering
   useEffect(() => {
@@ -157,11 +166,13 @@ export default function Radar({
       const targets = targetsRef.current;
       
       targets.forEach((target) => {
-        const screenX = centerX + target.x / scale;
-        const screenY = centerY - target.y / scale;
+        // Calculate x, y from polar coordinates (angle, range)
+        const { x, y } = polarToCartesian(target.angle, target.range);
+        const screenX = centerX + x / scale;
+        const screenY = centerY - y / scale;
 
         // Skip if outside visible range
-        if (Math.abs(target.x) > maxRange || Math.abs(target.y) > maxRange) {
+        if (Math.abs(x) > maxRange || Math.abs(y) > maxRange) {
           return;
         }
 
@@ -202,8 +213,9 @@ export default function Radar({
 
       // Find clicked target
       const clickedTarget = targetsRef.current.find(t => {
-        const screenX = centerX + t.x / scale;
-        const screenY = centerY - t.y / scale;
+        const { x, y } = polarToCartesian(t.angle, t.range);
+        const screenX = centerX + x / scale;
+        const screenY = centerY - y / scale;
         const distance = Math.sqrt((clickX - screenX) ** 2 + (clickY - screenY) ** 2);
         return distance < 15;
       });

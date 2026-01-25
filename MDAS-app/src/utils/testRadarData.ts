@@ -1,6 +1,47 @@
 import type { RadarPacket, RadarLine } from './simradParser';
 
 /**
+ * RadarTarget interface matching the expected data format
+ */
+export interface RadarTarget {
+  bytes: number;
+  angle: number;
+  angle_index: number;
+  range: number;
+  intensity: number;
+  id?: number;
+}
+
+/**
+ * Generate a test RadarTarget object in the expected format
+ * @param shipAngle - Angle of the ship in degrees (0-360)
+ * @param shipRange - Range of the ship in meters
+ * @param shipIntensity - Intensity value for the ship (0-255)
+ * @param angleIndex - Angle index (0-3599 for 0.1 degree resolution)
+ * @param id - Optional target ID
+ * @returns Test RadarTarget object matching the expected format
+ */
+export function generateTestRadarTarget(
+  shipAngle: number = 45,  // 45 degrees (northeast)
+  shipRange: number = 5000,  // 5 km from center
+  shipIntensity: number = 200,  // Strong signal
+  angleIndex?: number,  // Will calculate from angle if not provided
+  id?: number
+): RadarTarget {
+  // Calculate angle_index from angle if not provided (0.1 degree resolution)
+  const calculatedAngleIndex = angleIndex ?? Math.round(shipAngle * 10) % 3600;
+  
+  return {
+    bytes: shipIntensity,  // Bytes typically equals intensity value
+    angle: shipAngle,
+    angle_index: calculatedAngleIndex,
+    range: shipRange,
+    intensity: shipIntensity,
+    id: id,
+  };
+}
+
+/**
  * Generate test radar data with a hardcoded ship for testing
  * @param shipAngle - Angle of the ship in degrees (0-360)
  * @param shipRange - Range of the ship in meters
