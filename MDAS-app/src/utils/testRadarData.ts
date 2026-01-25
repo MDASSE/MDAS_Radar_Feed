@@ -1,5 +1,4 @@
 import type { RadarPacket, RadarLine } from './simradParser';
-import { polarToCartesian } from './simradParser';
 
 /**
  * Generate test radar data with a hardcoded ship for testing

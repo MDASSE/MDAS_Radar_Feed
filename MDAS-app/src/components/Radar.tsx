@@ -125,8 +125,6 @@ export default function Radar({
     };
 
     const drawRadarSweep = (ctx: CanvasRenderingContext2D, centerX: number, centerY: number, scale: number, line: RadarLine) => {
-      const angleRad = (line.angle * Math.PI) / 180;
-      
       // Draw intensity data as a line
       ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
       ctx.lineWidth = 1;

@@ -31,7 +31,8 @@ let getRadarRange: (() => number) | null = null;
 let setOwnShip: ((x: number, y: number, heading: number) => void) | null = null;
 let clearVessels: (() => void) | null = null;
 let addVessel: ((x: number, y: number, speed: number, heading: number, course: number, id: number, callsign: string) => void) | null = null;
-let setVesselsFromData: ((dataPtr: number, callsignsPtr: number, count: number) => void) | null = null;
+// setVesselsFromData is available but not currently used
+// let setVesselsFromData: ((dataPtr: number, callsignsPtr: number, count: number) => void) | null = null;
 
 export interface Vessel {
   x: number;
@@ -92,12 +93,13 @@ export async function loadRadarModule(): Promise<EmscriptenModule> {
         clearVessels = radarModule.cwrap('clearVessels', '', []) as () => void;
         
         // addVessel needs special handling for string parameter - use ccall for strings
-        const addVesselFunc = radarModule.ccall.bind(radarModule);
         addVessel = (x: number, y: number, speed: number, heading: number, course: number, id: number, callsign: string) => {
-          radarModule.ccall('addVessel', null, ['number', 'number', 'number', 'number', 'number', 'number', 'string'], [x, y, speed, heading, course, id, callsign]);
+          const callsignStr = callsign || '';
+          radarModule!.ccall('addVessel', 'void', ['number', 'number', 'number', 'number', 'number', 'number', 'string'], [x, y, speed, heading, course, id, callsignStr]);
         };
         
-        setVesselsFromData = radarModule.cwrap('setVesselsFromData', '', ['number', 'number', 'number']) as (dataPtr: number, callsignsPtr: number, count: number) => void;
+        // setVesselsFromData is available but not currently used
+        // setVesselsFromData = radarModule.cwrap('setVesselsFromData', '', ['number', 'number', 'number']) as (dataPtr: number, callsignsPtr: number, count: number) => void;
 
         // getVesselCallsign returns a string pointer, needs special handling
         const getVesselCallsignPtr = radarModule.cwrap('getVesselCallsign', 'number', ['number']) as (index: number) => number;
@@ -245,7 +247,7 @@ export function loadVesselsFromServer(vesselsData: ServerVesselData[], ownShipLa
   // Convert lat/lon to meters if needed (approximate conversion)
   // 1 degree latitude ≈ 111,320 meters
   // 1 degree longitude ≈ 111,320 * cos(latitude) meters
-  const latToMeters = (lat: number, refLat: number = 0) => lat * 111320;
+  const latToMeters = (lat: number) => lat * 111320;
   const lonToMeters = (lon: number, refLat: number = 0) => lon * 111320 * Math.cos(refLat * Math.PI / 180);
 
   for (const vessel of vesselsData) {
@@ -262,7 +264,7 @@ export function loadVesselsFromServer(vesselsData: ServerVesselData[], ownShipLa
         const latDiff = vessel.latitude - ownShipLat;
         const lonDiff = vessel.longitude - ownShipLon;
         x = lonToMeters(lonDiff, ownShipLat);
-        y = latToMeters(latDiff, ownShipLat);
+        y = latToMeters(latDiff);
       } else {
         // Convert to meters from origin (0,0)
         x = lonToMeters(vessel.longitude, vessel.latitude);
@@ -299,7 +301,7 @@ export function loadVesselsFromServer(vesselsData: ServerVesselData[], ownShipLa
 /**
  * Fetch vessels from server API endpoint
  */
-export async function fetchVesselsFromServer(apiUrl: string, ownShipLat?: number, ownShipLon?: number): Promise<ServerVesselData[]> {
+export async function fetchVesselsFromServer(apiUrl: string, _ownShipLat?: number, _ownShipLon?: number): Promise<ServerVesselData[]> {
   try {
     const response = await fetch(apiUrl);
     if (!response.ok) {
