@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import Login from './components/Login'
+import ProtectedRoute from './components/ProtectedRoute'
 import Radar from './components/Radar'
 import ShipInfo from './components/ShipInfo'
 import { pollRadarData } from './utils/radarApi'
@@ -107,7 +108,14 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<RadarDashboard />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <RadarDashboard />
+            </ProtectedRoute>
+          } 
+        />
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
