@@ -140,7 +140,7 @@ export function connectRadarWebSocket(
 
   try {
 
-    ws = new WebSocket(webSocketUrl);
+    ws = new WebSocket("wss://ws.dpalma.dev/ws");
 
     ws.binaryType = 'arraybuffer'; // Receive binary data as ArrayBuffer
 
