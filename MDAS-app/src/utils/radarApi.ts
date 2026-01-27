@@ -76,29 +76,45 @@ export async function fetchRadarPacket(apiUrl: string): Promise<RadarPacket> {
 
 /**
  * Convert HTTP URL to WebSocket URL
- * @param httpUrl - HTTP/HTTPS URL
+ * @param httpUrl - HTTP/HTTPS URL or WebSocket URL
  * @returns WebSocket URL (ws:// or wss://)
  */
-function convertToWebSocketUrl(httpUrl: string): string {
-  try {
-    const url = new URL(httpUrl);
-    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${url.host}${url.pathname}`;
-  } catch (error) {
-    // If URL parsing fails, assume it's already a WebSocket URL or try to convert manually
-    if (httpUrl.startsWith('ws://') || httpUrl.startsWith('wss://')) {
-      return httpUrl;
-    }
-    // Try to convert common patterns
-    if (httpUrl.startsWith('http://')) {
-      return httpUrl.replace('http://', 'ws://');
-    }
-    if (httpUrl.startsWith('https://')) {
-      return httpUrl.replace('https://', 'wss://');
-    }
-    // Default to ws:// if no protocol specified
-    return `ws://${httpUrl}`;
+function convertToWebSocketUrl(httpUrl: string | undefined | null): string {
+  if (!httpUrl) {
+    throw new Error('WebSocket URL is not configured (httpUrl is empty).');
   }
+
+  // First check if it's already a WebSocket URL - preserve it as-is
+  if (httpUrl.startsWith('wss://')) {
+    return httpUrl; // Already secure WebSocket, return as-is
+  }
+  if (httpUrl.startsWith('ws://')) {
+    // If page is loaded over HTTPS, upgrade insecure ws:// to wss://
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      console.warn('Upgrading insecure ws:// to wss:// for HTTPS page');
+      return httpUrl.replace('ws://', 'wss://');
+    }
+    return httpUrl; // Keep ws:// for HTTP pages
+  }
+
+  // Convert HTTP/HTTPS URLs to WebSocket URLs
+  if (httpUrl.startsWith('https://')) {
+    return httpUrl.replace('https://', 'wss://');
+  }
+  if (httpUrl.startsWith('http://')) {
+    // If page is loaded over HTTPS, use wss:// instead of ws://
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      console.warn('Converting http:// to wss:// for HTTPS page');
+      return httpUrl.replace('http://', 'wss://');
+    }
+    return httpUrl.replace('http://', 'ws://');
+  }
+
+  // If no protocol specified, use wss:// for HTTPS pages, ws:// for HTTP
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return `wss://${httpUrl}`;
+  }
+  return `ws://${httpUrl}`;
 }
 
 /**
@@ -114,13 +130,16 @@ export function connectRadarWebSocket(
   onData: (packet: RadarPacket) => void,
   onError?: (error: Error) => void
 ): () => void {
-  // Convert HTTP URL to WebSocket URL if needed
+  // Debug: Log the raw URL and converted URL to verify TLS handling
+  console.log("Raw wsUrl arg:", wsUrl);
   const webSocketUrl = convertToWebSocketUrl(wsUrl);
+  console.log("Final WebSocket URL:", webSocketUrl);
   
   let ws: WebSocket | null = null;
   let isConnected = false;
 
   try {
+
     ws = new WebSocket(webSocketUrl);
 
     ws.binaryType = 'arraybuffer'; // Receive binary data as ArrayBuffer

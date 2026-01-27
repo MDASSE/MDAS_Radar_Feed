@@ -15,32 +15,58 @@ function RadarDashboard() {
   const [selectedTargetId, setSelectedTargetId] = useState<number | null>(null);
   const stopWebSocketRef = useRef<(() => void) | null>(null);
 
-  // WebSocket endpoint - can be configured via environment variable or prop
-  // Supports both WebSocket URLs (ws://, wss://) and HTTP URLs (will be converted)
-  const wsUrl = import.meta.env.VITE_RADAR_WS_URL;
-
   // Connect to radar data via WebSocket on mount
   useEffect(() => {
-    // Connect to radar data via WebSocket
-    const stopWebSocket = connectRadarWebSocket(
-      wsUrl,
-      (packet) => {
-        setRadarPacket(packet);
-      },
-      (error) => {
-        console.error('WebSocket error:', error);
-      }
-    );
+    let isMounted = true;
 
-    stopWebSocketRef.current = stopWebSocket;
+    // Fetch WebSocket URL from server endpoint (keeps URL server-side)
+    // Falls back to VITE_RADAR_WS_URL if API endpoint doesn't exist
+    const getWebSocketUrl = async (): Promise<string | null> => {
+      try {
+        // Try to fetch from API endpoint first (recommended for production)
+        const response = await fetch('/api/config/websocket-url');
+        if (response.ok) {
+          const data = await response.json();
+          return data.wsUrl || null;
+        }
+      } catch (error) {
+        // API endpoint doesn't exist, fall back to env variable
+        console.log('Config API not available, using environment variable');
+      }
+
+      // Fallback to VITE env variable (exposed to browser)
+      return import.meta.env.VITE_RADAR_WS_URL || null;
+    };
+
+    getWebSocketUrl().then((wsUrl) => {
+      if (!isMounted) return;
+
+      if (!wsUrl) {
+        console.error('WebSocket URL is not configured. Radar WebSocket will not connect.');
+        return;
+      }
+
+      const stopWebSocket = connectRadarWebSocket(
+        wsUrl,
+        (packet) => {
+          setRadarPacket(packet);
+        },
+        (error) => {
+          console.error('WebSocket error:', error);
+        }
+      );
+
+      stopWebSocketRef.current = stopWebSocket;
+    });
 
     // Cleanup on unmount
     return () => {
+      isMounted = false;
       if (stopWebSocketRef.current) {
         stopWebSocketRef.current();
       }
     };
-  }, [wsUrl]);
+  }, []);
 
   const handleTargetSelect = (target: RadarTarget) => {
     setSelectedTargetId(target.id ?? null);
