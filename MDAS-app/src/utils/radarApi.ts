@@ -130,17 +130,14 @@ export function connectRadarWebSocket(
   onData: (packet: RadarPacket) => void,
   onError?: (error: Error) => void
 ): () => void {
-  // Debug: Log the raw URL and converted URL to verify TLS handling
-  console.log("Raw wsUrl arg:", wsUrl);
   const webSocketUrl = convertToWebSocketUrl(wsUrl);
-  console.log("Final WebSocket URL:", webSocketUrl);
-  
+
   let ws: WebSocket | null = null;
   let isConnected = false;
 
   try {
 
-    ws = new WebSocket("wss://ws.dpalma.dev/ws");
+    ws = new WebSocket(webSocketUrl);
 
     ws.binaryType = 'arraybuffer'; // Receive binary data as ArrayBuffer
 
