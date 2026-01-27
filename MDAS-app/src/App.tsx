@@ -5,50 +5,42 @@ import Login from './components/Login'
 import ProtectedRoute from './components/ProtectedRoute'
 import Radar from './components/Radar'
 import ShipInfo from './components/ShipInfo'
-import { pollRadarData } from './utils/radarApi'
-import { generateTestRadarTarget, type RadarTarget } from './utils/testRadarData'
+import { connectRadarWebSocket } from './utils/radarApi'
+import type { RadarTarget } from './utils/testRadarData'
 import type { RadarPacket } from './utils/simradParser'
 
 function RadarDashboard() {
   const [radarPacket, setRadarPacket] = useState<RadarPacket | null>(null);
-  const [testTargets, setTestTargets] = useState<RadarTarget[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<RadarTarget | null>(null);
   const [selectedTargetId, setSelectedTargetId] = useState<number | null>(null);
-  const stopPollingRef = useRef<(() => void) | null>(null);
-  const [useTestData, setUseTestData] = useState(true); // Start with test data
+  const stopWebSocketRef = useRef<(() => void) | null>(null);
 
-  // API endpoint - can be configured via environment variable or prop
-  const apiUrl = import.meta.env.VITE_RADAR_API_URL || 'http://localhost:3000/api/radar/latest';
+  // WebSocket endpoint - can be configured via environment variable or prop
+  // Supports both WebSocket URLs (ws://, wss://) and HTTP URLs (will be converted)
+  const wsUrl = import.meta.env.VITE_RADAR_WS_URL;
 
-  // Generate test data on mount
+  // Connect to radar data via WebSocket on mount
   useEffect(() => {
-    if (useTestData) {
-      // Generate test radar target with a ship at 45 degrees, 5km range
-      const testTarget = generateTestRadarTarget(45, 5000, 200, undefined, 0);
-      setTestTargets([testTarget]);
-      setRadarPacket(null); // Clear radar packet when using test targets
-    } else {
-      setTestTargets([]); // Clear test targets when using server data
-    }
-  }, [useTestData]);
-
-  useEffect(() => {
-    if (!useTestData) {
-      // Start polling for radar data from server
-      const stopPolling = pollRadarData(apiUrl, 1000, (packet) => {
+    // Connect to radar data via WebSocket
+    const stopWebSocket = connectRadarWebSocket(
+      wsUrl,
+      (packet) => {
         setRadarPacket(packet);
-      });
+      },
+      (error) => {
+        console.error('WebSocket error:', error);
+      }
+    );
 
-      stopPollingRef.current = stopPolling;
+    stopWebSocketRef.current = stopWebSocket;
 
-      // Cleanup on unmount
-      return () => {
-        if (stopPollingRef.current) {
-          stopPollingRef.current();
-        }
-      };
-    }
-  }, [apiUrl, useTestData]);
+    // Cleanup on unmount
+    return () => {
+      if (stopWebSocketRef.current) {
+        stopWebSocketRef.current();
+      }
+    };
+  }, [wsUrl]);
 
   const handleTargetSelect = (target: RadarTarget) => {
     setSelectedTargetId(target.id ?? null);
@@ -67,24 +59,12 @@ function RadarDashboard() {
         <header className="mb-8 text-center">
           <h1 className="text-5xl font-bold text-cyan-400 mb-2">MDAS Radar Feed</h1>
           <p className="text-slate-400 text-lg">Maritime Domain Awareness System - Simrad Radar Display</p>
-          <div className="mt-4">
-            <button
-              onClick={() => setUseTestData(!useTestData)}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
-            >
-              {useTestData ? 'Switch to Server Data' : 'Switch to Test Data'}
-            </button>
-            {useTestData && (
-              <p className="text-yellow-400 text-sm mt-2">Using test data with hardcoded ship</p>
-            )}
-          </div>
         </header>
 
         <div className="flex flex-row gap-12 justify-center items-start">
           <div className="flex-shrink-0">
             <Radar 
               radarPacket={radarPacket || undefined}
-              targets={useTestData ? testTargets : undefined}
               onTargetSelect={handleTargetSelect}
               onTargetsUpdate={handleTargetsUpdate}
             />
