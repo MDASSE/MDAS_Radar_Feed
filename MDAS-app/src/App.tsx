@@ -34,8 +34,8 @@ function RadarDashboard() {
         console.log('Config API not available, using environment variable');
       }
 
-      // Fallback to VITE env variable (exposed to browser)
-      return import.meta.env.VITE_RADAR_WS_URL || null;
+      // Fallback to VITE env variable, then default
+      return import.meta.env.VITE_RADAR_WS_URL || 'wss://ws.dpalma.dev/ws';
     };
 
     getWebSocketUrl().then((wsUrl) => {

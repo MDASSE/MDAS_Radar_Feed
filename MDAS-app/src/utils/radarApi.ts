@@ -159,56 +159,46 @@ export function connectRadarWebSocket(
               return;
             }
 
-            // Case 2: Single-beam format from server:
-            // { "angleCdeg": 6000, "angleIndex": 600, "rangeM": 24000, "i1023": 175 }
+            // Case 2: Bin-based format (matches backend wire: bin = range/12, intensities[bin-1])
+            // { "angleCdeg": 6000, "angleIndex": 45, "bin": 512 } - bin is 0-indexed array index
+            // Backend sends: bin = range/12, uses intensities[bin-1] → wire "bin" = bin-1 (0–2047)
             if (
               json &&
               typeof json === 'object' &&
               ('angleCdeg' in json || 'angleIndex' in json) &&
-              'rangeM' in json &&
-              'i1023' in json
+              'bin' in json
             ) {
-              const angleCdeg = Number((json as any).angleCdeg);
+              const angleCdeg = Number((json as any).angleCdeg) || 0;
               const angleIndex =
                 (json as any).angleIndex !== undefined
                   ? Number((json as any).angleIndex)
-                  : Math.round(angleCdeg / 10); // 0.1° resolution
-              const rangeM = Number((json as any).rangeM);
-              const intensity1023 = Number((json as any).i1023);
+                  : Math.round(angleCdeg / 10);
+              let bin = Number((json as any).bin);
+              const intensity = Number((json as any).intensity) ?? 175;
 
-              // Build a synthetic RadarPacket with one line
-              // rangeM is the actual range where the ship is located (can vary as ship moves)
               const BINS_PER_LINE = 2048;
-              const MAX_RANGE_METERS = 24000; // Fixed radar display range
-              const maxRange = MAX_RANGE_METERS;
-              
-              // Calculate bin index from actual range so ship can appear anywhere (center to edge)
-              // When rangeM varies (e.g. 2000, 12000, 24000), bin index varies accordingly
-              const binIndex = Math.min(
-                Math.max(0, Math.floor((rangeM / maxRange) * BINS_PER_LINE)),
-                BINS_PER_LINE - 1
-              );
-              
-              const intensities = new Array(BINS_PER_LINE).fill(0);
-              if (!Number.isNaN(intensity1023)) {
-                intensities[binIndex] = intensity1023;
-              }
+              const MAX_RANGE_METERS = 24576; // 2048 * 12, matches backend
 
-              const angleDeg =
-                !Number.isNaN(angleCdeg) ? angleCdeg / 100 : angleIndex / 10;
+              // Backend uses 1-based bin (1–2048), index = bin-1. Accept both.
+              const binIndex = bin > BINS_PER_LINE - 1
+                ? Math.min(BINS_PER_LINE - 1, Math.max(0, bin - 1))
+                : Math.min(BINS_PER_LINE - 1, Math.max(0, bin));
+
+              const intensities = new Array(BINS_PER_LINE).fill(0);
+              intensities[binIndex] = intensity;
+
+              const angleDeg = angleCdeg / 100;
 
               const packet: RadarPacket = {
                 timestamp: new Date().toISOString(),
-                lines: [
-                  {
-                    angle: angleDeg,
-                    angleIndex,
-                    range: maxRange,
-                    intensities,
-                  },
-                ],
-                length: intensities.length,
-                maxRangeMeters: maxRange,
+                lines: [{
+                  angle: angleDeg,
+                  angleIndex,
+                  range: MAX_RANGE_METERS,
+                  intensities,
+                }],
+                length: BINS_PER_LINE,
+                maxRangeMeters: MAX_RANGE_METERS,
               };
 
               onData(packet);
@@ -226,12 +216,11 @@ export function connectRadarWebSocket(
           return;
         }
 
-        // Handle binary messages (ArrayBuffer or Blob) with JSON header + binary payload
+        // Handle binary messages
         let arrayBuffer: ArrayBuffer;
         if (event.data instanceof ArrayBuffer) {
           arrayBuffer = event.data;
         } else if (event.data instanceof Blob) {
-          // Convert Blob to ArrayBuffer
           event.data
             .arrayBuffer()
             .then((buffer) => {
