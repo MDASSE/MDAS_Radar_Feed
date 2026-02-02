@@ -177,18 +177,15 @@ export function connectRadarWebSocket(
               const intensity1023 = Number((json as any).i1023);
 
               // Build a synthetic RadarPacket with one line
-              // rangeM is the actual range where the ship is located
+              // rangeM is the actual range where the ship is located (can vary as ship moves)
               const BINS_PER_LINE = 2048;
-              // Use rangeM as the max range, so the ship appears at the correct distance
-              const maxRange = rangeM;
+              const MAX_RANGE_METERS = 24000; // Fixed radar display range
+              const maxRange = MAX_RANGE_METERS;
               
-              // Calculate the correct bin index based on the actual range
-              // Since rangeM is the actual range and we're using it as maxRange,
-              // the ship should be at the last bin (or very close to it)
-              // But to be safe, calculate: binIndex = (rangeM / maxRange) * BINS_PER_LINE
-              // Since maxRange = rangeM, this gives us binIndex = BINS_PER_LINE - 1 (last bin)
+              // Calculate bin index from actual range so ship can appear anywhere (center to edge)
+              // When rangeM varies (e.g. 2000, 12000, 24000), bin index varies accordingly
               const binIndex = Math.min(
-                Math.floor((rangeM / maxRange) * BINS_PER_LINE),
+                Math.max(0, Math.floor((rangeM / maxRange) * BINS_PER_LINE)),
                 BINS_PER_LINE - 1
               );
               
